@@ -6,6 +6,7 @@ import Register from './pages/Register';
 import Events from './pages/Events';
 import Seats from './pages/Seats';
 import MyBookings from './pages/MyBookings';
+import type { JSX } from 'react/jsx-runtime';
 
 const PrivateRoute = ({ children }: { children: JSX.Element }) => {
   const { token } = useAuth();
