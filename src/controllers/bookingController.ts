@@ -145,3 +145,85 @@ export const getMyBookings = async (req: AuthRequest, res: Response) => {
     res.status(500).json({ error: 'Failed to fetch bookings' });
   }
 };
+
+// Cancel booking
+export const cancelBooking = async (req: AuthRequest, res: Response) => {
+  const { bookingId } = req.params;
+  const userId = req.userId;
+
+  const client = await pool.connect();
+
+  try {
+    await client.query('BEGIN');
+
+    // Check booking exists and belongs to this user
+    const bookingResult = await client.query(
+      `SELECT * FROM bookings WHERE id = $1 AND user_id = $2 FOR UPDATE`,
+      [bookingId, userId]
+    );
+
+    if (bookingResult.rows.length === 0) {
+      await client.query('ROLLBACK');
+      res.status(404).json({ error: 'Booking not found' });
+      return;
+    }
+
+    const booking = bookingResult.rows[0];
+
+    if (booking.status === 'cancelled') {
+      await client.query('ROLLBACK');
+      res.status(400).json({ error: 'Booking already cancelled' });
+      return;
+    }
+
+    // Check event hasn't passed
+    const eventResult = await client.query(
+      `SELECT * FROM events WHERE id = $1`,
+      [booking.event_id]
+    );
+    const event = eventResult.rows[0];
+
+    if (new Date(event.event_date) < new Date()) {
+      await client.query('ROLLBACK');
+      res.status(400).json({ error: 'Cannot cancel past events' });
+      return;
+    }
+
+    // Calculate refund amount
+    const hoursUntilEvent = (new Date(event.event_date).getTime() - Date.now()) / (1000 * 60 * 60);
+    let refundPercent = 0;
+
+    if (hoursUntilEvent > 48) refundPercent = 100;       // full refund
+    else if (hoursUntilEvent > 24) refundPercent = 50;   // 50% refund
+    else refundPercent = 0;                               // no refund
+
+    const refundAmount = (booking.amount_paid * refundPercent) / 100;
+
+    // Cancel booking
+    await client.query(
+      `UPDATE bookings SET status = 'cancelled' WHERE id = $1`,
+      [bookingId]
+    );
+
+    // Release seat back to available
+    await client.query(
+      `UPDATE seats SET status = 'available' WHERE id = $1`,
+      [booking.seat_id]
+    );
+
+    await client.query('COMMIT');
+
+    res.json({
+      message: 'Booking cancelled successfully',
+      refundAmount,
+      refundPercent,
+      originalAmount: booking.amount_paid
+    });
+
+  } catch (err) {
+    await client.query('ROLLBACK');
+    res.status(500).json({ error: 'Cancellation failed' });
+  } finally {
+    client.release();
+  }
+};

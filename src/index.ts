@@ -4,6 +4,7 @@ import pool from './db/pool';
 import authRoutes from './routes/authRoutes';
 import eventRoutes from './routes/eventRoutes';
 import bookingRoutes from './routes/bookingRoutes';
+import './jobs/lockExpiry';
 
 dotenv.config();
 
