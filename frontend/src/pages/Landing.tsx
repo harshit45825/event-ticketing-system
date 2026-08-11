@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 const words = ['Concerts', 'Sports', 'Comedy Shows', 'Conferences', 'Festivals'];
-const COLORS = ['#8b5cf6', '#6366f1', '#ec4899', '#06b6d4', '#10b981'];
 
 const Landing = () => {
   const navigate = useNavigate();
